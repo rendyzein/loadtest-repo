@@ -1,0 +1,74 @@
+name: CI Pipeline Notes App
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  # 1. Job Linting (ESLint)
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+      - name: Install Dependencies
+        run: npm install
+      - name: Run Lint
+        run: npm run lint # Pastikan script "lint" ada di package.json
+
+  # 2. Job Unit Test (Jest)
+  unit-test:
+    needs: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      - name: Install Dependencies
+        run: npm install
+      - name: Run Unit Tests with Coverage
+        run: npm test -- --coverage # Menghasilkan laporan coverage untuk SonarQube
+
+  # 3. Job SonarQube Scan
+  sonarqube:
+    needs: unit-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Penting untuk analisis SonarQube yang akurat
+      - name: SonarQube Scan
+        uses: sonarsource/sonarqube-scan-action@master
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+
+  # 4. Job k6 Smoke Test (Opsional di CI, tapi bagus untuk nilai plus)
+  k6-test:
+    needs: sonarqube
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      - name: Install & Start App in Background
+        run: |
+          npm install
+          npm start & # Menjalankan aplikasi Express di background
+          sleep 5 # Menunggu aplikasi siap
+      - name: Run k6 Smoke Test
+        uses: grafana/k6-action@v0.3.1
+        with:
+          filename: loadtest/script.js
+        env:
+          BASE_URL: http://localhost:3000
