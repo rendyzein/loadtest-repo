@@ -71,4 +71,4 @@ jobs:
         with:
           filename: loadtest/script.js
         env:
-          BASE_URL: http://172.17.0.1:3000
+          BASE_URL: http://localhost:3000
