@@ -20,7 +20,7 @@ jobs:
       - name: Install Dependencies
         run: npm install
       - name: Run Lint
-        run: npm run lint # Pastikan script "lint" ada di package.json
+        run: npm run lint
 
   # 2. Job Unit Test (Jest)
   unit-test:
@@ -35,23 +35,39 @@ jobs:
       - name: Install Dependencies
         run: npm install
       - name: Run Unit Tests with Coverage
-        run: npm test -- --coverage # Menghasilkan laporan coverage untuk SonarQube
+        run: npm test -- --coverage
 
   # 3. Job SonarQube Scan
   sonarqube:
     needs: unit-test
     runs-on: ubuntu-latest
+
+    services:
+      sonarqube:
+        image: sonarqube:community
+        ports:
+          - 9000:9000
+
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # Penting untuk analisis SonarQube yang akurat
+          fetch-depth: 0
+
+      - name: Wait for SonarQube to be ready
+        run: |
+          echo "Waiting for SonarQube..."
+          for i in {1..30}; do
+            curl -s http://localhost:9000/api/server/version && break
+            sleep 5
+          done
+
       - name: SonarQube Scan
         uses: sonarsource/sonarqube-scan-action@v5.0.0
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+          SONAR_HOST_URL: http://localhost:9000
 
-  # 4. Job k6 Smoke Test (Opsional di CI, tapi bagus untuk nilai plus)
+  # 4. Job k6 Smoke Test
   k6-test:
     needs: sonarqube
     runs-on: ubuntu-latest
@@ -64,8 +80,8 @@ jobs:
       - name: Install & Start App in Background
         run: |
           npm install
-          npm start & # Menjalankan aplikasi Express di background
-          sleep 5 # Menunggu aplikasi siap
+          npm start &
+          sleep 5
       - name: Run k6 Smoke Test
         uses: grafana/k6-action@v0.3.1
         with:
