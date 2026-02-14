@@ -56,10 +56,20 @@ jobs:
       - name: Wait for SonarQube to be ready
         run: |
           echo "Waiting for SonarQube..."
-          for i in {1..30}; do
-            curl -s http://localhost:9000/api/server/version && break
+          for i in {1..60}; do
+            STATUS=$(curl -s http://localhost:9000/api/system/status | jq -r '.status')
+            echo "Current status: $STATUS"
+
+            if [ "$STATUS" = "UP" ]; then
+              echo "SonarQube is UP!"
+              exit 0
+            fi
+
             sleep 5
           done
+
+          echo "SonarQube failed to start in time"
+          exit 1
 
       - name: SonarQube Scan
         uses: sonarsource/sonarqube-scan-action@v5.0.0
